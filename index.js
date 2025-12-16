@@ -2428,12 +2428,95 @@ function startServer() {
     const wss = new WebSocket.Server({ server, path: '/ws' });
 
     wss.on('connection', (ws) => {
+      let webUserId = null;
       try { console.log('[WS] Novo cliente conectado'); } catch (_) {}
 
-      ws.on('message', (msg) => {
-        try { console.log('[WS] Mensagem recebida do cliente:', String(msg)); } catch (_) {}
-        // Por enquanto apenas ecoa de volta; integração com fluxo principal pode ser feita depois
-        try { ws.send(String(msg)); } catch (_) {}
+      ws.on('message', async (msg) => {
+        try {
+          const raw = String(msg || '').trim();
+          try { console.log('[WS] Mensagem recebida do cliente:', raw); } catch (_) {}
+
+          let data;
+          try {
+            data = JSON.parse(raw);
+          } catch (_) {
+            // Se não for JSON, ignora ou ecoa como texto simples
+            return;
+          }
+
+          if (data.type === 'set_user_id' && data.userId) {
+            webUserId = String(data.userId);
+            try {
+              ws.send(JSON.stringify({
+                type: 'log',
+                level: 'info',
+                message: `ID de usuário associado: ${webUserId}`
+              }));
+            } catch (_) {}
+            return;
+          }
+
+          // Trata mensagens de texto do chat web
+          if (data.type === 'message' && data.content) {
+            const uid = webUserId || data.userId || 'web_anon';
+            try {
+              // Adiciona um log no painel
+              ws.send(JSON.stringify({
+                type: 'log',
+                level: 'info',
+                message: `Mensagem do usuário (${uid}): ${data.content}`
+              }));
+            } catch (_) {}
+
+            let replyText = 'Beleza!';
+            try {
+              const r = await generateAdaptiveReply(uid, data.content);
+              if (typeof r === 'string' && r.trim()) replyText = r.trim();
+            } catch (e) {
+              try { console.error('[WS] Erro ao gerar resposta adaptativa:', e?.message || e); } catch (_) {}
+            }
+
+            try {
+              ws.send(JSON.stringify({
+                type: 'message',
+                content: replyText,
+                isUser: false
+              }));
+            } catch (_) {}
+            return;
+          }
+
+          // Mensagens de localização vindas do chat web
+          if (data.type === 'location' && typeof data.lat === 'number' && typeof data.lng === 'number') {
+            const uid = webUserId || data.userId || 'web_anon';
+            try {
+              ws.send(JSON.stringify({
+                type: 'log',
+                level: 'info',
+                message: `Localização recebida de ${uid}: (${data.lat.toFixed(5)}, ${data.lng.toFixed(5)})`
+              }));
+            } catch (_) {}
+
+            const reply = `Recebi sua localização: latitude ${data.lat.toFixed(4)}, longitude ${data.lng.toFixed(4)}. Em breve vou usar isso para te mostrar bares e restaurantes por perto.`;
+            try {
+              ws.send(JSON.stringify({
+                type: 'message',
+                content: reply,
+                isUser: false
+              }));
+            } catch (_) {}
+            return;
+          }
+        } catch (err) {
+          try { console.error('[WS] Erro ao processar mensagem do cliente:', err?.message || err); } catch (_) {}
+          try {
+            ws.send(JSON.stringify({
+              type: 'log',
+              level: 'error',
+              message: 'Erro ao processar mensagem no servidor WebSocket.'
+            }));
+          } catch (_) {}
+        }
       });
 
       ws.on('close', () => {
