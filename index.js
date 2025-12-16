@@ -2210,16 +2210,13 @@ app.post('/webhook', async (req, res) => {
       // Se veio áudio sem texto, tenta transcrever com Google Speech-to-Text
       if (!userMessage && audioMessage) {
         try {
-          let audioBase64 = audioMessage.base64;
-          // Fallback: se não houver base64, tenta baixar pela URL e converter
-          if (!audioBase64 && audioMessage.url) {
-            try {
-              const dl = await axios.get(audioMessage.url, { responseType: 'arraybuffer', timeout: 10000 });
-              audioBase64 = Buffer.from(dl.data).toString('base64');
-              try { console.log('[AUDIO] Baixei áudio via URL para transcrição'); } catch (_) {}
-            } catch (e) {
-              try { console.error('[AUDIO] Falha ao baixar áudio pela URL:', e?.message || e); } catch (_) {}
-            }
+          // A Evolution costuma enviar o áudio já em base64 em message.base64
+          // e, em alguns casos, em audioMessage.base64. A URL .enc é criptografada
+          // e não deve ser enviada diretamente ao Google STT.
+          let audioBase64 = messageData.message?.base64 || audioMessage.base64 || null;
+
+          if (!audioBase64) {
+            try { console.warn('[AUDIO] Nenhum campo base64 disponível para áudio; ignorando transcrição'); } catch (_) {}
           }
 
           if (audioBase64) {
@@ -2236,7 +2233,7 @@ app.post('/webhook', async (req, res) => {
             return res.sendStatus(200);
           }
         } catch (e) {
-          try { console.error('[AUDIO] Falha ao processar áudio:', e?.message || e); } catch (_) {}
+          try { console.error('[AUDIO] Falha ao processar áudio:', e?.response?.data || e?.message || e); } catch (_) {}
           const fallback = 'Recebi seu áudio, mas não consegui entender direitinho o que foi dito. Se puder, escreve rapidinho o que você está buscando (bar, restaurante, região ou dúvida).';
           try { await sendMessage(from, fallback); } catch (_) {}
           return res.sendStatus(200);
