@@ -61,12 +61,15 @@ async function transcribeAudioWithGoogle(base64Audio, mimetype) {
       console.warn('[AUDIO] GOOGLE_SPEECH_API_KEY não configurada; ignorando áudio');
       return null;
     }
-    const encoding = (mimetype || '').toLowerCase().includes('ogg') ? 'OGG_OPUS' : 'ENCODING_UNSPECIFIED';
+    const isOgg = (mimetype || '').toLowerCase().includes('ogg');
+    const encoding = isOgg ? 'OGG_OPUS' : 'ENCODING_UNSPECIFIED';
     const url = `https://speech.googleapis.com/v1/speech:recognize?key=${encodeURIComponent(GOOGLE_SPEECH_API_KEY)}`;
     const payload = {
       config: {
         encoding,
         languageCode: GOOGLE_SPEECH_LANGUAGE,
+        // Para OGG_OPUS o Google exige sampleRateHertz explícito (em geral 48000 Hz)
+        sampleRateHertz: isOgg ? 48000 : undefined,
         enableAutomaticPunctuation: true,
       },
       audio: { content: base64Audio },
@@ -2194,6 +2197,11 @@ app.post('/webhook', async (req, res) => {
       const messageData = data.data;
       const from = messageData.key?.remoteJid || messageData.from;
       const messageId = messageData.key?.id;
+      // Ignora mensagens enviadas pela própria IA/bot para evitar loops e repetições
+      if (messageData.key?.fromMe) {
+        try { console.log('[WEBHOOK] Ignorando mensagem fromMe para', from, messageId); } catch (_) {}
+        return res.sendStatus(200);
+      }
       let userMessage = messageData.message?.conversation || messageData.message?.extendedTextMessage?.text;
       const locMessage = messageData.message?.locationMessage;
       const audioMessage = messageData.message?.audioMessage;
