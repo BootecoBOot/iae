@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Painel I.aê - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  </head>
+  <body class="h-full bg-slate-950 text-slate-100">
+    <div class="min-h-full flex flex-col">
+      <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-20">
+        <div class="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-400 to-sky-500 flex items-center justify-center text-slate-950 font-black text-xl">
+              ia
+            </div>
+            <div>
+              <h1 class="text-lg font-semibold tracking-tight">Painel I.aê</h1>
+              <p class="text-xs text-slate-400">Visão geral de uso, buscas e indicações</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 text-xs text-slate-400">
+            <label class="flex items-center gap-2">
+              <span>Período (dias)</span>
+              <select id="days-select" class="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                <option value="7">7</option>
+                <option value="14">14</option>
+                <option value="30" selected>30</option>
+                <option value="60">60</option>
+              </select>
+            </label>
+            <span id="last-updated" class="hidden md:inline"></span>
+          </div>
+        </div>
+      </header>
+
+      <main class="flex-1 relative">
+        <div class="mx-auto max-w-6xl px-4 py-6 space-y-6">
+          <!-- KPIs principais -->
+          <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <article class="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-4 flex flex-col gap-2">
+              <header class="flex items-center justify-between">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wide">Usuários totais</h2>
+              </header>
+              <p id="kpi-users-total" class="text-2xl font-semibold">-</p>
+              <p class="text-xs text-emerald-400" id="kpi-users-new">-</p>
+            </article>
+
+            <article class="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-4 flex flex-col gap-2">
+              <header class="flex items-center justify-between">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wide">Mensagens</h2>
+              </header>
+              <p id="kpi-messages-total" class="text-2xl font-semibold">-</p>
+              <p class="text-xs text-sky-400" id="kpi-messages-period">-</p>
+            </article>
+
+            <article class="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-4 flex flex-col gap-2">
+              <header class="flex items-center justify-between">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wide">Buscas</h2>
+              </header>
+              <p id="kpi-searches-total" class="text-2xl font-semibold">-</p>
+              <p class="text-xs text-amber-400" id="kpi-searches-24h">-</p>
+            </article>
+
+            <article class="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-4 flex flex-col gap-2">
+              <header class="flex items-center justify-between">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wide">Top indicações</h2>
+              </header>
+              <p id="kpi-top-place" class="text-sm font-semibold line-clamp-2">-</p>
+              <p id="kpi-top-place-count" class="text-xs text-slate-400">-</p>
+            </article>
+          </section>
+
+          <!-- Gráficos principais -->
+          <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-medium text-slate-100">Usuários & Mensagens por dia</h2>
+                <p class="text-xs text-slate-500">Novos usuários vs volume de mensagens</p>
+              </div>
+              <div class="h-72">
+                <canvas id="chart-users-messages"></canvas>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-medium text-slate-100">Buscas nas últimas 24h</h2>
+                <p class="text-xs text-slate-500">Distribuição horária</p>
+              </div>
+              <div class="h-72">
+                <canvas id="chart-searches-24h"></canvas>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tabelas -->
+          <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+              <header class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-medium text-slate-100">Top termos buscados</h2>
+              </header>
+              <div class="overflow-hidden rounded-xl border border-slate-800/80">
+                <table class="min-w-full text-xs">
+                  <thead class="bg-slate-900/80 text-slate-400">
+                    <tr>
+                      <th class="px-3 py-2 text-left font-medium">#</th>
+                      <th class="px-3 py-2 text-left font-medium">Termo</th>
+                      <th class="px-3 py-2 text-right font-medium">Buscas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-top-keywords" class="divide-y divide-slate-800"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+              <header class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-medium text-slate-100">Top 3 indicações</h2>
+              </header>
+              <div class="overflow-hidden rounded-xl border border-slate-800/80">
+                <table class="min-w-full text-xs">
+                  <thead class="bg-slate-900/80 text-slate-400">
+                    <tr>
+                      <th class="px-3 py-2 text-left font-medium">#</th>
+                      <th class="px-3 py-2 text-left font-medium">Lugar</th>
+                      <th class="px-3 py-2 text-left font-medium">Região</th>
+                      <th class="px-3 py-2 text-right font-medium">Indicações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-top-places" class="divide-y divide-slate-800"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Últimos usuários -->
+          <section class="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <header class="flex items-center justify-between mb-3">
+              <h2 class="text-sm font-medium text-slate-100">Últimos usuários</h2>
+              <p class="text-xs text-slate-500">Ordenados pela última interação</p>
+            </header>
+            <div class="overflow-hidden rounded-xl border border-slate-800/80">
+              <table class="min-w-full text-xs">
+                <thead class="bg-slate-900/80 text-slate-400">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-medium">WhatsApp</th>
+                    <th class="px-3 py-2 text-left font-medium">Nome</th>
+                    <th class="px-3 py-2 text-left font-medium">Primeiro contato</th>
+                    <th class="px-3 py-2 text-left font-medium">Último contato</th>
+                  </tr>
+                </thead>
+                <tbody id="table-recent-users" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Funil de uso -->
+          <section class="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <header class="flex items-center justify-between mb-3">
+              <h2 class="text-sm font-medium text-slate-100">Funil de uso</h2>
+              <p class="text-xs text-slate-500">Da base de usuários até as indicações entregues</p>
+            </header>
+            <div class="overflow-hidden rounded-xl border border-slate-800/80">
+              <table class="min-w-full text-xs">
+                <thead class="bg-slate-900/80 text-slate-400">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-medium">Etapa</th>
+                    <th class="px-3 py-2 text-right font-medium">Quantidade</th>
+                  </tr>
+                </thead>
+                <tbody id="table-funnel" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <p id="error-banner" class="hidden text-xs text-red-400"></p>
+        </div>
+
+        <div id="secret-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm">
+          <div class="w-full max-w-xs rounded-2xl border border-slate-800 bg-slate-950 px-5 py-6 shadow-2xl">
+            <h2 class="text-sm font-semibold text-slate-100 mb-1">Acesso ao painel</h2>
+            <p class="text-xs text-slate-400 mb-4">Informe a chave secreta de admin para visualizar as métricas.</p>
+            <form id="secret-form" class="space-y-3">
+              <div class="space-y-1">
+                <label for="secret-input" class="block text-xs text-slate-300">Secret admin</label>
+                <input id="secret-input" type="password" autocomplete="off" class="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              </div>
+              <p id="secret-error" class="text-xs text-red-400 h-4"></p>
+              <button type="submit" class="w-full inline-flex items-center justify-center rounded-md bg-emerald-500 px-3 py-2 text-xs font-medium text-slate-950 hover:bg-emerald-400 transition">Entrar</button>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      let chartUsersMessages;
+      let chartSearches24h;
+      let adminSecret = null;
+
+      function formatNumber(n) {
+        if (n === null || n === undefined || isNaN(n)) return '-';
+        return new Intl.NumberFormat('pt-BR').format(Number(n));
+      }
+
+      function setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      }
+
+      async function fetchMetrics(days) {
+        const url = new URL(`/admin/metrics`, window.location.origin);
+        url.searchParams.set('days', String(days));
+        const options = {};
+        if (adminSecret) {
+          options.headers = { 'x-admin-secret': adminSecret };
+        }
+        const res = await fetch(url.toString(), options);
+        if (res.status === 401) {
+          throw new Error('unauthorized');
+        }
+        if (!res.ok) throw new Error('Falha ao carregar métricas');
+        return res.json();
+      }
+
+      function updateKPIs(data) {
+        const u = data.kpis.users || {};
+        const m = data.kpis.messages || {};
+        const s = data.kpis.searches || {};
+        const p = data.kpis.places || {};
+
+        setText('kpi-users-total', formatNumber(u.total));
+        const ativosHoje = formatNumber(u.activeToday);
+        const ativosPeriodo = formatNumber(u.activePeriod);
+        const novos = formatNumber(u.newInPeriod);
+        const mediaMsgs = u.avgMessagesPerUser != null ? u.avgMessagesPerUser.toFixed(1) : '-';
+        setText(
+          'kpi-users-new',
+          `Ativos hoje: ${ativosHoje} • Ativos no período: ${ativosPeriodo} • +${novos} novos em ${data.periodDays} dias • Média: ${mediaMsgs} msgs/usuário`
+        );
+
+        setText('kpi-messages-total', formatNumber(m.total));
+        setText('kpi-messages-period', `${formatNumber(m.inPeriod)} mensagens no período`);
+
+        setText('kpi-searches-total', formatNumber(s.total));
+        setText('kpi-searches-24h', `${formatNumber(s.last24h)} buscas nas últimas 24h`);
+
+        const top3 = (p.top3 || []);
+        if (top3.length > 0) {
+          setText('kpi-top-place', top3[0].name || '-');
+          setText('kpi-top-place-count', `${formatNumber(top3[0].count)} indicações`);
+        } else {
+          setText('kpi-top-place', '-');
+          setText('kpi-top-place-count', '-');
+        }
+      }
+
+      function updateTables(data) {
+        const s = data.kpis.searches || {};
+        const p = data.kpis.places || {};
+        const f = data.kpis.funnel || {};
+        const u = data.kpis.users || {};
+
+        const keywordsBody = document.getElementById('table-top-keywords');
+        const placesBody = document.getElementById('table-top-places');
+        const recentUsersBody = document.getElementById('table-recent-users');
+        const funnelBody = document.getElementById('table-funnel');
+        if (!keywordsBody || !placesBody || !recentUsersBody || !funnelBody) return;
+
+        keywordsBody.innerHTML = '';
+        (s.topKeywords || []).forEach((row, idx) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-3 py-2 text-slate-500">${idx + 1}</td>
+            <td class="px-3 py-2">${row.keyword || '-'}</td>
+            <td class="px-3 py-2 text-right font-medium">${formatNumber(row.count)}</td>
+          `;
+          keywordsBody.appendChild(tr);
+        });
+
+        placesBody.innerHTML = '';
+        (p.top3 || []).forEach((row, idx) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-3 py-2 text-slate-500">${idx + 1}</td>
+            <td class="px-3 py-2 font-medium">${row.name || '-'}</td>
+            <td class="px-3 py-2 text-slate-400">${row.vicinity || '-'}</td>
+            <td class="px-3 py-2 text-right font-medium">${formatNumber(row.count)}</td>
+          `;
+          placesBody.appendChild(tr);
+        });
+
+        // Últimos usuários
+        recentUsersBody.innerHTML = '';
+        (u.recent || []).forEach((row) => {
+          const maskJid = (row.wa_jid || '').replace(/@(.*)$/, '');
+          const created = row.created_at ? new Date(row.created_at).toLocaleString('pt-BR') : '-';
+          const updated = row.updated_at ? new Date(row.updated_at).toLocaleString('pt-BR') : '-';
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-3 py-2 text-slate-400">${maskJid}</td>
+            <td class="px-3 py-2">${row.name || '-'}</td>
+            <td class="px-3 py-2 text-slate-400">${created}</td>
+            <td class="px-3 py-2 text-slate-400">${updated}</td>
+          `;
+          recentUsersBody.appendChild(tr);
+        });
+
+        // Funil de uso
+        funnelBody.innerHTML = '';
+        const funnelRows = [
+          { label: 'Usuários na base', value: f.usersTotal },
+          { label: `Usuários ativos no período (${data.periodDays} dias)`, value: f.usersActivePeriod },
+          { label: 'Mensagens no período', value: f.messagesInPeriod },
+          { label: 'Buscas totais', value: f.searchesTotal },
+          { label: 'Buscas nas últimas 24h', value: f.searchesLast24h },
+          { label: 'Locais indicados (lugares distintos)', value: f.recommendationsPlaces },
+          { label: 'Indicações enviadas (todas as vezes)', value: f.recommendationsTotal },
+        ];
+        funnelRows.forEach((row) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-3 py-2 text-slate-300">${row.label}</td>
+            <td class="px-3 py-2 text-right font-medium">${formatNumber(row.value)}</td>
+          `;
+          funnelBody.appendChild(tr);
+        });
+      }
+
+      function buildUsersMessagesChart(ctx, data) {
+        const usersSeries = data.kpis.users?.byDay || [];
+        const msgSeries = data.kpis.messages?.byDay || [];
+
+        const labels = Array.from(new Set([
+          ...usersSeries.map((d) => d.day),
+          ...msgSeries.map((d) => d.day),
+        ])).sort();
+
+        const usersData = labels.map((day) => {
+          return usersSeries.find((d) => d.day === day)?.newUsers || 0;
+        });
+        const msgData = labels.map((day) => {
+          return msgSeries.find((d) => d.day === day)?.messages || 0;
+        });
+
+        if (chartUsersMessages) chartUsersMessages.destroy();
+
+        chartUsersMessages = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Novos usuários',
+                data: usersData,
+                borderColor: '#22c55e',
+                backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                tension: 0.35,
+                fill: true,
+                pointRadius: 2,
+              },
+              {
+                label: 'Mensagens',
+                data: msgData,
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                tension: 0.35,
+                fill: true,
+                pointRadius: 2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                ticks: { color: '#64748b', maxRotation: 0 },
+                grid: { color: 'rgba(15,23,42,0.8)' },
+              },
+              y: {
+                ticks: { color: '#64748b' },
+                grid: { color: 'rgba(15,23,42,0.8)' },
+              },
+            },
+            plugins: {
+              legend: { labels: { color: '#e2e8f0', usePointStyle: true } },
+              tooltip: { mode: 'index', intersect: false },
+            },
+          },
+        });
+      }
+
+      function buildSearches24hChart(ctx, data) {
+        const series = data.kpis.searches?.byHourLast24h || [];
+        const labels = series.map((b) => new Date(b.t).getHours() + 'h');
+        const counts = series.map((b) => b.count);
+
+        if (chartSearches24h) chartSearches24h.destroy();
+
+        chartSearches24h = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Buscas',
+                data: counts,
+                backgroundColor: 'rgba(251, 191, 36, 0.8)',
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                ticks: { color: '#64748b' },
+                grid: { display: false },
+              },
+              y: {
+                ticks: { color: '#64748b' },
+                grid: { color: 'rgba(15,23,42,0.8)' },
+              },
+            },
+            plugins: {
+              legend: { display: false },
+            },
+          },
+        });
+      }
+
+      async function refresh() {
+        const daysSelect = document.getElementById('days-select');
+        const days = daysSelect ? Number(daysSelect.value || 30) : 30;
+        const errorBanner = document.getElementById('error-banner');
+
+        try {
+          if (!adminSecret) {
+            const overlay = document.getElementById('secret-overlay');
+            if (overlay) overlay.classList.remove('hidden');
+            return;
+          }
+
+          if (errorBanner) {
+            errorBanner.classList.add('hidden');
+            errorBanner.textContent = '';
+          }
+
+          const data = await fetchMetrics(days);
+          updateKPIs(data);
+          updateTables(data);
+
+          const ctxUsersMessages = document.getElementById('chart-users-messages');
+          const ctxSearches = document.getElementById('chart-searches-24h');
+          if (ctxUsersMessages && ctxSearches) {
+            buildUsersMessagesChart(ctxUsersMessages, data);
+            buildSearches24hChart(ctxSearches, data);
+          }
+
+          const lastUpdated = document.getElementById('last-updated');
+          if (lastUpdated) {
+            lastUpdated.textContent = `Atualizado em ${new Date().toLocaleString('pt-BR')}`;
+          }
+        } catch (err) {
+          console.error(err);
+          if (err && err.message === 'unauthorized') {
+            const overlay = document.getElementById('secret-overlay');
+            const secretError = document.getElementById('secret-error');
+            if (overlay) overlay.classList.remove('hidden');
+            if (secretError) secretError.textContent = 'Secret inválida. Tente novamente.';
+          } else if (errorBanner) {
+            errorBanner.textContent = 'Não foi possível carregar as métricas. Verifique se a API está rodando e tente novamente.';
+            errorBanner.classList.remove('hidden');
+          }
+        }
+      }
+
+      window.addEventListener('DOMContentLoaded', () => {
+        try {
+          const saved = window.localStorage ? window.localStorage.getItem('iae_admin_secret') : null;
+          if (saved) adminSecret = saved;
+        } catch (_) {}
+
+        const overlay = document.getElementById('secret-overlay');
+        if (adminSecret && overlay) {
+          overlay.classList.add('hidden');
+        }
+
+        const daysSelect = document.getElementById('days-select');
+        if (daysSelect) {
+          daysSelect.addEventListener('change', () => refresh());
+        }
+        const secretForm = document.getElementById('secret-form');
+        const secretInput = document.getElementById('secret-input');
+        const secretError = document.getElementById('secret-error');
+        if (secretForm && secretInput) {
+          secretForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const value = (secretInput.value || '').trim();
+            if (!value) {
+              if (secretError) secretError.textContent = 'Informe a secret.';
+              return;
+            }
+            adminSecret = value;
+            try {
+              if (window.localStorage) window.localStorage.setItem('iae_admin_secret', value);
+            } catch (_) {}
+            if (secretError) secretError.textContent = '';
+            const overlayEl = document.getElementById('secret-overlay');
+            if (overlayEl) overlayEl.classList.add('hidden');
+            refresh();
+          });
+        }
+        refresh();
+        setInterval(refresh, 60000);
+      });
+    </script>
+  </body>
+</html>

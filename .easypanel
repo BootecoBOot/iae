@@ -1,0 +1,34 @@
+project: iae
+services:
+  iae:
+    build: .
+    port: 3000
+    env:
+      - NODE_ENV=production
+      - PORT=3000
+      - EVOLUTION_URL
+      - EVOLUTION_API_KEY
+      - INSTANCE
+      - GOOGLE_MAPS_API_KEY
+      - GEMINI_API_KEY
+      - GEMINI_MODEL=gemini-2.5-flash
+      - GEMINI_TEMPERATURE=0.2
+    volumes:
+      - data:/app/data
+      - personas:/app/personas
+      - sponsored.json:/app/sponsored.json
+      - metrics.json:/app/metrics.json
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  data:
+    path: /app/data
+    owner: 1001:1001  # UID e GID do usuário nodejs
+  personas:
+    path: /app/personas
+    owner: 1001:1001

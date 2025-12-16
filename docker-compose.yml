@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  iae:
+    build: .
+    container_name: iae-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Configure as variáveis obrigatórias abaixo
+      - EVOLUTION_URL=${EVOLUTION_URL}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - INSTANCE=${INSTANCE}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Opcionais
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_TEMPERATURE=${GEMINI_TEMPERATURE:-0.2}
+    volumes:
+      # Persistência dos dados
+      - ./data:/app/data
+      - ./personas:/app/personas
+      - ./sponsored.json:/app/sponsored.json
+      - ./metrics.json:/app/metrics.json
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

@@ -1,0 +1,31 @@
+# Configuração EasyPanel para I.aê Bot
+services:
+  iae:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Variáveis OBRIGATÓRIAS - Configure antes de iniciar!
+      - EVOLUTION_URL=https://sua-evolution-api.com
+      - EVOLUTION_API_KEY=sua-chave-api-aqui
+      - INSTANCE=nome-da-instancia
+      - GOOGLE_MAPS_API_KEY=sua-chave-google-maps-aqui
+      - GEMINI_API_KEY=sua-chave-gemini-aqui
+      
+      # Variáveis opcionais
+      - PORT=3000
+      - NODE_ENV=production
+      
+    volumes:
+      - ./data:/app/data
+      - ./personas:/app/personas
+      
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

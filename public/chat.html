@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I.aê - Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 12px;
+            background-color: #f3f4f6;
+            border-radius: 18px;
+            width: fit-content;
+            margin-bottom: 8px;
+        }
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #6b7280;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+        .message {
+            max-width: 80%;
+            padding: 10px 16px;
+            border-radius: 18px;
+            margin-bottom: 8px;
+            position: relative;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.user {
+            background-color: #4f46e5;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .message.bot {
+            background-color: #f3f4f6;
+            color: #111827;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        .message-time {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin-top: 2px;
+            display: block;
+            text-align: right;
+        }
+        .log-entry {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            margin-bottom: 2px;
+            border-radius: 4px;
+            word-break: break-word;
+        }
+        .log-entry.info { background-color: #eff6ff; color: #1e40af; }
+        .log-entry.error { background-color: #fef2f2; color: #b91c1c; }
+        .log-entry.warn { background-color: #fffbeb; color: #b45309; }
+        .log-entry.debug { background-color: #ecfdf5; color: #047857; }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex">
+    <!-- Sidebar de Logs -->
+    <div class="w-1/3 h-full bg-white border-r border-gray-200 flex flex-col">
+        <div class="p-4 border-b border-gray-200 bg-indigo-600 text-white">
+            <h1 class="text-xl font-bold">Painel de Logs</h1>
+            <p class="text-sm text-indigo-100">Monitoramento em tempo real</p>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2" id="logsContainer">
+            <!-- Logs serão inseridos aqui -->
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-200">
+            <div class="flex items-center justify-between text-sm text-gray-600">
+                <span id="connectionStatus" class="flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-gray-400 mr-2" id="statusIndicator"></span>
+                    <span>Desconectado</span>
+                </span>
+                <button id="clearLogs" class="text-indigo-600 hover:text-indigo-800">
+                    <i class="fas fa-trash-alt"></i> Limpar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Área principal do Chat -->
+    <div class="flex-1 flex flex-col h-full">
+        <!-- Cabeçalho -->
+        <header class="bg-white border-b border-gray-200 p-4">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-robot text-indigo-600 text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-gray-900">I.aê Assistente</h1>
+                    <p class="text-xs text-gray-500" id="connectionInfo">Conectando ao servidor...</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Área de mensagens -->
+        <div class="flex-1 overflow-y-auto p-4" id="messagesContainer">
+            <!-- Mensagem de boas-vindas -->
+            <div class="message bot">
+                Olá! Eu sou o I.aê, seu assistente virtual. Como posso te ajudar hoje?
+                <span class="message-time">Agora</span>
+            </div>
+            <!-- Indicador de digitação -->
+            <div class="typing-indicator" id="typingIndicator" style="display: none;">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+
+        <!-- Área de entrada de mensagem -->
+        <div class="border-t border-gray-200 bg-white p-4">
+            <form id="messageForm" class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    placeholder="Digite sua mensagem..." 
+                    class="flex-1 border border-gray-300 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    autocomplete="off"
+                    required
+                >
+                <button 
+                    type="submit" 
+                    id="sendButton"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-10 h-10 flex items-center justify-center transition-colors"
+                >
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Elementos da UI
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        const messageForm = document.getElementById('messageForm');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const logsContainer = document.getElementById('logsContainer');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionInfo = document.getElementById('connectionInfo');
+        const clearLogsBtn = document.getElementById('clearLogs');
+
+        // Configuração do WebSocket
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        // Usa host completo (hostname + porta, se houver) para funcionar atrás de proxy (Easypanel)
+        const wsUrl = `${wsProtocol}${window.location.host}/ws`;
+        let socket;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        let reconnectTimeout;
+        let userId = `web_${Math.random().toString(36).substr(2, 9)}`; // ID único para o usuário da web
+
+        // Função para conectar ao WebSocket
+        function connectWebSocket() {
+            updateConnectionStatus('Conectando...', 'bg-yellow-400');
+            
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                console.log('Conexão WebSocket estabelecida');
+                updateConnectionStatus('Conectado', 'bg-green-500');
+                connectionInfo.textContent = 'Conectado ao servidor';
+                reconnectAttempts = 0;
+                
+                // Envia o ID do usuário ao conectar
+                socket.send(JSON.stringify({
+                    type: 'set_user_id',
+                    userId: userId
+                }));
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (error) {
+                    addLog('error', `Erro ao processar mensagem: ${error.message}`);
+                }
+            };
+
+            socket.onclose = () => {
+                updateConnectionStatus('Desconectado', 'bg-red-500');
+                connectionInfo.textContent = 'Conexão perdida, tentando reconectar...';
+                attemptReconnect();
+            };
+
+            socket.onerror = (error) => {
+                console.error('Erro no WebSocket:', error);
+                addLog('error', `Erro na conexão: ${error.message || 'Erro desconhecido'}`);
+            };
+        }
+
+        // Função para tentar reconectar
+        function attemptReconnect() {
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponencial backoff
+                
+                updateConnectionStatus(`Reconectando (${reconnectAttempts}/${maxReconnectAttempts})...`, 'bg-yellow-400');
+                connectionInfo.textContent = `Tentando reconectar em ${delay/1000} segundos...`;
+                
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = setTimeout(connectWebSocket, delay);
+            } else {
+                updateConnectionStatus('Falha na conexão', 'bg-red-500');
+                connectionInfo.textContent = 'Não foi possível reconectar. Por favor, recarregue a página.';
+            }
+        }
+
+        // Função para atualizar o status da conexão
+        function updateConnectionStatus(text, indicatorClass) {
+            const indicator = statusIndicator;
+            const statusText = connectionStatus.querySelector('span:last-child');
+            
+            // Remove todas as classes de cor
+            indicator.className = 'w-2 h-2 rounded-full mr-2 ' + (indicatorClass || 'bg-gray-400');
+            statusText.textContent = text;
+        }
+
+        // Função para adicionar mensagem ao chat
+        function addMessage(text, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+            
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            messageDiv.innerHTML = `
+                ${text}
+                <span class="message-time">${time}</span>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Função para adicionar log
+        function addLog(level, message) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${level}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const logLevel = level.toUpperCase();
+            
+            logEntry.innerHTML = `
+                <span class="font-mono">[${timestamp}]</span>
+                <span class="font-bold">${logLevel}</span>
+                <span>${message}</span>
+            `;
+            
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // Função para lidar com mensagens do WebSocket
+        function handleWebSocketMessage(data) {
+            if (data.type === 'message') {
+                // Esconde o indicador de digitação
+                typingIndicator.style.display = 'none';
+                
+                // Adiciona a mensagem ao chat
+                addMessage(data.content, data.isUser || false);
+            } 
+            else if (data.type === 'log') {
+                // Adiciona log ao painel
+                addLog(data.level || 'info', data.message);
+            }
+            else if (data.type === 'typing') {
+                // Mostra/oculta o indicador de digitação
+                typingIndicator.style.display = data.status ? 'flex' : 'none';
+                if (data.status) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            }
+        }
+
+        // Enviar mensagem
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Adiciona a mensagem do usuário ao chat
+            addMessage(message, true);
+            messageInput.value = '';
+
+            // Mostra o indicador de digitação
+            typingIndicator.style.display = 'flex';
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Envia a mensagem para o servidor via WebSocket
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'message',
+                    content: message,
+                    userId: userId
+                }));
+            } else {
+                addMessage('Erro de conexão. Tentando reconectar...', false);
+                connectWebSocket();
+            }
+        }
+
+        // Event Listeners
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            sendMessage();
+        });
+
+        clearLogsBtn.addEventListener('click', () => {
+            logsContainer.innerHTML = '';
+            addLog('info', 'Logs limpos');
+        });
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
+            addLog('info', 'Interface do chat carregada');
+            
+            // Foco no campo de mensagem
+            messageInput.focus();
+        });
+    </script>
+</body>
+</html>

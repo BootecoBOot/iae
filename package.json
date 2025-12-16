@@ -1,0 +1,36 @@
+{
+  "name": "iae-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "restaurant",
+    "bar",
+    "recommendation"
+  ],
+  "author": "I.aê Team",
+  "license": "MIT",
+  "description": "I.aê - Bot inteligente para recomendações de bares e restaurantes via WhatsApp",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.11.0",
+    "cheerio": "^1.1.2",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "sqlite3": "^5.1.7",
+    "venom-bot": "^5.3.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

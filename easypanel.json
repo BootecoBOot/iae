@@ -1,0 +1,38 @@
+{
+  "$schema": "https://easypanel.io/schema/easypanel.json",
+  "name": "iaenovo",
+  "services": [
+    {
+      "name": "app",
+      "image": "node:18",
+      "command": "node index.js",
+      "ports": [
+        {
+          "published": 3000,
+          "target": 3000
+        }
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": ".",
+          "target": "/app"
+        }
+      ],
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "EVOLUTION_URL": "https://iaatende-evolution-api.agu3wx.easypanel.host/",
+        "EVOLUTION_API_KEY": "5E42A2CA0527-4104-AADD-7A55C88EAD3E",
+        "INSTANCE": "iae",
+        "GOOGLE_MAPS_API_KEY": "AIzaSyAYQ7qHUo9Th1kLhBQLrKNgmYH1xD5v3Lc",
+        "GEMINI_API_KEY": "AIzaSyAYQ7qHUo9Th1kLhBQLrKNgmYH1xD5v3Lc",
+        "SECRET_ADMIN_PANEL": "sG7!v9QzR#2mXc8L@p4Tn6YbF%1wH3zK",
+        "GOOGLE_SPEECH_API_KEY": "AIzaSyAm60FkTEvETs4dbTASB1qdQ1onYJtnVAU"
+      },
+      "domains": [
+        "iae-iae.agu3wx.easypanel.host"
+      ]
+    }
+  ]
+}
