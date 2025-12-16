@@ -1998,6 +1998,193 @@ app.get('/chat', (req, res) => {
   }
 });
 
+// Rota da página técnica
+app.get('/tech', (req, res) => {
+  try {
+    const filePath = path.join(PUBLIC_DIR, 'tech.html');
+    return res.sendFile(filePath);
+  } catch (err) {
+    try { console.error('[TECH_PAGE]', err?.message || err); } catch (_) {}
+    return res.status(500).send('Falha ao carregar painel técnico');
+  }
+});
+
+// Status rápido dos principais componentes
+app.get('/tech/status', (req, res) => {
+  const requiredEnv = {
+    EVOLUTION_URL,
+    EVOLUTION_API_KEY,
+    INSTANCE,
+    GOOGLE_MAPS_API_KEY,
+    GEMINI_API_KEY,
+  };
+  const missing = Object.entries(requiredEnv)
+    .filter(([, v]) => !v || String(v).trim() === '')
+    .map(([k]) => k);
+
+  let metricsOk = true;
+  let metricsSummary = null;
+  try {
+    metricsSummary = metrics.getSummary();
+  } catch (e) {
+    metricsOk = false;
+  }
+
+  const components = {
+    env: {
+      name: 'Variáveis de ambiente',
+      ok: missing.length === 0,
+      description: 'Configuração mínima necessária para a IA funcionar.',
+      summary: missing.length === 0 ? 'Todas as variáveis obrigatórias estão definidas.' : `Faltando: ${missing.join(', ')}`,
+    },
+    gemini: {
+      name: 'Gemini (Google Generative AI)',
+      ok: !!model,
+      description: 'Modelo usado para respostas adaptativas e pequenas inteligências.',
+      summary: model ? `Modelo carregado: ${GEMINI_MODEL || 'desconhecido'}` : 'Modelo não está configurado ou falhou ao iniciar.',
+    },
+    maps: {
+      name: 'Google Maps API',
+      ok: !!GOOGLE_MAPS_API_KEY,
+      description: 'Usado para buscar bares/restaurantes e detalhes de lugares.',
+      summary: GOOGLE_MAPS_API_KEY ? 'Chave presente no ambiente.' : 'GOOGLE_MAPS_API_KEY ausente.',
+    },
+    evolution: {
+      name: 'Evolution API',
+      ok: !!EVOLUTION_URL && !!EVOLUTION_API_KEY,
+      description: 'Gateway de mensagens do WhatsApp.',
+      summary: EVOLUTION_URL ? `URL configurada: ${EVOLUTION_URL}` : 'EVOLUTION_URL ausente.',
+    },
+    db: {
+      name: 'Banco / Métricas',
+      ok: metricsOk,
+      description: 'Leitura básica de métricas agregadas.',
+      summary: metricsOk ? 'Leitura de métricas OK.' : 'Falha ao ler métricas pela função metrics.getSummary().',
+    },
+  };
+
+  return res.json({
+    lastCheck: new Date().toISOString(),
+    components,
+    metricsSample: metricsSummary || undefined,
+  });
+});
+
+// Testes detalhados por componente
+app.get('/tech/test', async (req, res) => {
+  const target = String(req.query.target || '').toLowerCase();
+  const out = { target };
+
+  try {
+    if (!target || target === 'env') {
+      const requiredEnv = {
+        EVOLUTION_URL,
+        EVOLUTION_API_KEY,
+        INSTANCE,
+        GOOGLE_MAPS_API_KEY,
+        GEMINI_API_KEY,
+      };
+      const missing = Object.entries(requiredEnv)
+        .filter(([, v]) => !v || String(v).trim() === '')
+        .map(([k]) => k);
+      out.ok = missing.length === 0;
+      out.detail = missing.length === 0
+        ? 'Todas as variáveis obrigatórias estão definidas.'
+        : `Variáveis ausentes: ${missing.join(', ')}`;
+      return res.json(out);
+    }
+
+    if (target === 'gemini') {
+      if (!model) {
+        out.ok = false;
+        out.detail = 'Modelo Gemini não foi inicializado (verifique GEMINI_API_KEY e GEMINI_MODEL).';
+        return res.json(out);
+      }
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const r = await model.generateContent('Responda apenas com OK.');
+        clearTimeout(timeoutId);
+        const txt = (await r.response.text()).trim();
+        out.ok = !!txt;
+        out.detail = `Resposta do modelo: ${txt}`;
+      } catch (e) {
+        out.ok = false;
+        out.detail = `Erro ao chamar Gemini: ${e?.message || String(e)}`;
+      }
+      return res.json(out);
+    }
+
+    if (target === 'maps') {
+      if (!GOOGLE_MAPS_API_KEY) {
+        out.ok = false;
+        out.detail = 'GOOGLE_MAPS_API_KEY não configurada.';
+        return res.json(out);
+      }
+      try {
+        const url = 'https://maps.googleapis.com/maps/api/place/textsearch/json';
+        const params = {
+          query: 'bar',
+          location: '-15.7801,-47.9292',
+          radius: 500,
+          key: GOOGLE_MAPS_API_KEY,
+        };
+        const r = await axios.get(url, { params, timeout: 7000 });
+        const status = r.data?.status;
+        out.ok = status === 'OK' || status === 'ZERO_RESULTS';
+        out.detail = `Status da API: ${status}. Resultados: ${(r.data?.results || []).length}`;
+      } catch (e) {
+        out.ok = false;
+        out.detail = `Erro ao chamar Google Maps: ${e?.response?.status || ''} ${e?.message || e}`;
+      }
+      return res.json(out);
+    }
+
+    if (target === 'evolution') {
+      if (!EVOLUTION_URL || !EVOLUTION_API_KEY) {
+        out.ok = false;
+        out.detail = 'EVOLUTION_URL ou EVOLUTION_API_KEY não configurados.';
+        return res.json(out);
+      }
+      try {
+        const url = `${EV_URL_BASE}/status`;
+        const r = await axios.get(url, {
+          headers: { apikey: EVOLUTION_API_KEY },
+          timeout: 7000,
+        });
+        out.ok = r.status === 200;
+        out.detail = `Status HTTP: ${r.status}. Corpo: ${JSON.stringify(r.data).slice(0, 500)}`;
+      } catch (e) {
+        out.ok = false;
+        const status = e?.response?.status;
+        const body = e?.response?.data;
+        out.detail = `Erro ao chamar Evolution: ${status || ''} ${e?.message || e}. Corpo: ${JSON.stringify(body).slice(0, 500)}`;
+      }
+      return res.json(out);
+    }
+
+    if (target === 'db' || target === 'metrics') {
+      try {
+        const summary = metrics.getSummary();
+        out.ok = true;
+        out.detail = `Leitura de métricas OK. Amostra: ${JSON.stringify(summary).slice(0, 800)}`;
+      } catch (e) {
+        out.ok = false;
+        out.detail = `Erro ao ler métricas: ${e?.message || e}`;
+      }
+      return res.json(out);
+    }
+
+    out.ok = false;
+    out.detail = `Alvo desconhecido: ${target}. Use env, gemini, maps, evolution ou db.`;
+    return res.json(out);
+  } catch (err) {
+    out.ok = false;
+    out.detail = `Falha interna no teste: ${err?.message || err}`;
+    return res.json(out);
+  }
+});
+
 app.post('/webhook', async (req, res) => {
   const data = req.body;
   console.log("📩 Mensagem recebida:", JSON.stringify(data, null, 2));

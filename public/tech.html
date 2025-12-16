@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>I.aê - Painel Técnico</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Painel técnico da I.aê</h1>
+        <p class="text-sm text-slate-400">Status em tempo quase real dos principais componentes</p>
+      </div>
+      <button id="refreshButton" class="inline-flex items-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-xs font-medium text-slate-950 hover:bg-emerald-400 transition">
+        Atualizar agora
+      </button>
+    </header>
+
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="cardsContainer">
+      <!-- Cards de status serão renderizados via JS -->
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-sm font-semibold text-slate-200">Detalhes e logs recentes</h2>
+      <div id="detailsContainer" class="rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-200 whitespace-pre-wrap overflow-y-auto max-h-80"></div>
+    </section>
+  </div>
+
+  <script>
+    const cardsContainer = document.getElementById('cardsContainer');
+    const detailsContainer = document.getElementById('detailsContainer');
+    const refreshButton = document.getElementById('refreshButton');
+
+    function statusColor(ok) {
+      return ok ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/10 text-red-300 border-red-500/40';
+    }
+
+    function renderStatus(data) {
+      cardsContainer.innerHTML = '';
+      if (!data || !data.components) return;
+
+      Object.keys(data.components).forEach((key) => {
+        const comp = data.components[key];
+        const card = document.createElement('article');
+        card.className = 'rounded-xl border border-slate-800 bg-slate-900/70 p-4 flex flex-col gap-2';
+        card.innerHTML = `
+          <header class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-100">${comp.name || key}</h2>
+            <span class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${statusColor(comp.ok)}">
+              ${comp.ok ? 'OK' : 'ERRO'}
+            </span>
+          </header>
+          <p class="text-xs text-slate-400">${comp.description || ''}</p>
+          <p class="text-xs text-slate-300">${comp.summary || ''}</p>
+          <button data-target="${key}" class="mt-2 inline-flex items-center justify-center rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800 transition test-button">
+            Rodar teste detalhado
+          </button>
+        `;
+        cardsContainer.appendChild(card);
+      });
+
+      attachTestHandlers();
+      if (data.lastCheck) {
+        detailsContainer.textContent = `Última verificação: ${new Date(data.lastCheck).toLocaleString('pt-BR')}`;
+      }
+    }
+
+    function attachTestHandlers() {
+      const buttons = document.querySelectorAll('.test-button');
+      buttons.forEach((btn) => {
+        btn.onclick = async () => {
+          const target = btn.getAttribute('data-target');
+          await runTest(target);
+        };
+      });
+    }
+
+    async function fetchStatus() {
+      try {
+        refreshButton.disabled = true;
+        const res = await fetch('/tech/status');
+        const data = await res.json();
+        renderStatus(data);
+      } catch (err) {
+        detailsContainer.textContent = `Falha ao carregar status: ${err.message}`;
+      } finally {
+        refreshButton.disabled = false;
+      }
+    }
+
+    async function runTest(target) {
+      try {
+        detailsContainer.textContent = 'Executando teste...';
+        const res = await fetch(`/tech/test?target=${encodeURIComponent(target)}`);
+        const data = await res.json();
+        const ok = data && data.ok;
+        const header = `[${target}] Resultado: ${ok ? 'OK' : 'ERRO'}\n`;
+        const body = data && data.detail ? data.detail : JSON.stringify(data, null, 2);
+        detailsContainer.textContent = header + body;
+      } catch (err) {
+        detailsContainer.textContent = `Erro ao executar teste: ${err.message}`;
+      }
+    }
+
+    refreshButton.addEventListener('click', () => fetchStatus());
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchStatus();
+      setInterval(fetchStatus, 30000);
+    });
+  </script>
+</body>
+</html>
