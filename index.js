@@ -75,11 +75,21 @@ async function transcribeAudioWithGoogle(base64Audio, mimetype) {
       audio: { content: base64Audio },
     };
     const resp = await axios.post(url, payload, { timeout: 10000 });
+    try {
+      console.log('[AUDIO][DEBUG] Resposta bruta do Google STT:', JSON.stringify(resp.data));
+    } catch (_) {}
     const results = resp.data?.results;
-    if (!Array.isArray(results) || results.length === 0) return null;
+    if (!Array.isArray(results) || results.length === 0) {
+      try { console.warn('[AUDIO][DEBUG] Google STT retornou results vazio para o áudio'); } catch (_) {}
+      return null;
+    }
     const alt = results[0].alternatives?.[0];
     const transcript = (alt?.transcript || '').trim();
-    return transcript || null;
+    if (!transcript) {
+      try { console.warn('[AUDIO][DEBUG] Google STT retornou alternativa sem transcript de texto'); } catch (_) {}
+      return null;
+    }
+    return transcript;
   } catch (err) {
     try { console.error('[AUDIO] Erro ao transcrever áudio:', err?.response?.data || err?.message || err); } catch (_) {}
     return null;
@@ -151,11 +161,17 @@ async function sendAdaptive(recipientId, hint) {
 
 // --- Geração de resposta adaptativa por Gemini ---
 async function generateAdaptiveReply(wa_jid, userMessage) {
-  // Se for uma pergunta sobre bares/restaurantes, responde diretamente
-  if (userMessage.toLowerCase().match(/bar|restaurante|comer|beber|lanche|jantar|almoçar|jantar|happy hour/i)) {
-    const name = getUserName(wa_jid) || 'parceiro';
-    return `Beleza, ${name}! Vou te ajudar a encontrar um lugar legal. Me conta: qual tipo de lugar você está procurando? (bar, restaurante, lanchonete, etc.)`;
-  }
+  // Primeiro tenta entender se é um pedido de bar/restaurante usando NLU (parseInitialIntent)
+  try {
+    const persona = personasCache[wa_jid] || {};
+    const parsed = await parseInitialIntent(userMessage, persona);
+    const intent = parsed?.intention;
+
+    if (intent === 'bar' || intent === 'restaurante') {
+      const name = getUserName(wa_jid) || 'parceiro';
+      return `Beleza, ${name}! Vou te ajudar a encontrar um lugar legal. Me conta: qual tipo de lugar você está procurando? (bar, restaurante, lanchonete, etc.)`;
+    }
+  } catch (_) {}
 
   // Se o Gemini estiver indisponível, retorna null para usar respostas padrão
   if (!model) return null;
@@ -2558,6 +2574,36 @@ app.post('/webhook', async (req, res) => {
       }
       // Fallback adaptativo: se nenhuma rota acima tratou a mensagem
       if (userMessage) {
+        // Antes de cair na resposta genérica, tenta entender se é um pedido
+        // de recomendação de bar/restaurante usando o modelo (parseInitialIntent).
+        // Isso permite compreender pedidos livres como "boteco barato" sem depender
+        // apenas de palavras exatas como "bar" ou "restaurante".
+        try {
+          const parsed = await parseInitialIntent(userMessage, personasCache[from]);
+          const intent = parsed?.intention;
+          const initialPrefs = parsed?.preferences || {};
+
+          if (intent === 'bar' || intent === 'restaurante') {
+            // Se já houver uma localização pendente, usa direto para buscar
+            const pend = userState[from]?.pendingLocation;
+            if (pend && typeof pend.lat === 'number' && typeof pend.lng === 'number') {
+              userState[from].refinement = {
+                type: intent,
+                answers: initialPrefs,
+                lat: pend.lat,
+                lng: pend.lng
+              };
+              delete userState[from].pendingLocation;
+              await finalizeSearch(from);
+              return res.sendStatus(200);
+            }
+
+            // Caso contrário, inicia o refinamento dinâmico direto com a intenção
+            await startDynamicRefinement(from, userMessage, intent, initialPrefs);
+            return res.sendStatus(200);
+          }
+        } catch (_) {}
+
         // Tratamento especial para escolhas numéricas (1/2/3) sem CTA ativo,
         // para evitar respostas genéricas quando o usuário está tentando escolher.
         try {
@@ -2571,6 +2617,8 @@ app.post('/webhook', async (req, res) => {
             return res.sendStatus(200);
           }
         } catch (_) {}
+
+        // Se nada acima tratou, usa a resposta adaptativa genérica
         try {
           const reply = await generateAdaptiveReply(from, userMessage);
           await sendMessage(from, reply);
