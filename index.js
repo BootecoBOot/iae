@@ -141,7 +141,7 @@ async function sendAdaptive(recipientId, hint) {
     if (!reply) {
       console.log('[DEBUG] Nenhuma resposta adaptativa gerada, usando resposta padrão');
       const name = getUserName(recipientId) || 'parceiro';
-      const defaultReply = `Tá tudo tranquilo, ${name}! Vamos lá, me conta: você quer dica de *bar* ou *restaurante*? E em qual bairro ou região?`;
+      const defaultReply = `Beleza, ${name}! Não peguei exatamente tudo que você quis dizer, mas tô aqui pra te ajudar com bares e restaurantes. Me explica rapidinho do seu jeito o que você tá buscando agora.`;
       await sendMessage(recipientId, defaultReply);
       return defaultReply;
     }
@@ -169,7 +169,10 @@ async function generateAdaptiveReply(wa_jid, userMessage) {
 
     if (intent === 'bar' || intent === 'restaurante') {
       const name = getUserName(wa_jid) || 'parceiro';
-      return `Beleza, ${name}! Vou te ajudar a encontrar um lugar legal. Me conta: qual tipo de lugar você está procurando? (bar, restaurante, lanchonete, etc.)`;
+      const tipo = intent === 'bar' ? 'um bar' : 'um restaurante';
+      // Aqui entendemos que a pessoa já falou o tipo (ex.: "restaurante com comida de vó").
+      // Em vez de perguntar de novo "bar ou restaurante", avançamos pedindo localização/bairro.
+      return `Show, ${name}! Entendi que você quer ${tipo} com essa vibe que comentou. Me diz agora em qual bairro/cidade você quer ou então me manda a sua localização que eu procuro opções pra você.`;
     }
   } catch (_) {}
 
