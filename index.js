@@ -161,6 +161,24 @@ async function sendAdaptive(recipientId, hint) {
 
 // --- Geração de resposta adaptativa por Gemini ---
 async function generateAdaptiveReply(wa_jid, userMessage) {
+  try {
+    const m = String(userMessage || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const mentionsCarnaval = m.includes('carnaval');
+
+    if (mentionsCarnaval) {
+      const carnavalReply = `🎉 IAÊ?! VAMOS DE CARNAVAL? 🎉\n\nSe você quer carnaval, então toma!\nEm parceria com o @deubombrasilia, o @iae.bsb traz a lista de carnaval mais desejada de Brasília! 🥳🔥\n👉 Siga nossos perfis e fique por dentro de tudo!\n\n🗓️ AGENDA DE FESTAS & BLOCOS\n\n🎭 JANEIRO\n\n📅 17/01 (sábado)\n🎶 Pré-Carnaval Galpão 17 com Bloco Eduardo e Mônica\n📍 Galpão 17\n💰 Pago\n\n📅 31/01\n🎉 Esquenta de Carnaval – Texxas Bar\n📍 Texxas Bar\n💰 Pago\n\n🎭 FEVEREIRO\n\n📅 07/02 • a partir das 16h\n🎺 Bloco do MY (Esquenta)\n📍 Clube ASCADE\n💰 Pago\n\n📅 07/02\n🎈 Bloquinho da GR\n📍 Local a definir\n💰 Pago\n\n📅 07/02 (sábado)\n🥁 Bloco do Pretinho\n📍 Varjão\n🆓 Gratuito\n\n📅 07/02 (sábado)\n🎸 Pré-Carnaval da Banda Flexão\n⏰ A partir das 14h\n📍 Praça da QI 09 – Guará I\n🆓 Gratuito\n\n📅 13/02\n🍾 Suite Pee Folia – Bloco BYOB\n📍 Trend’s Bar\n💰 Pago\n\n📅 14/02\n🔥 O Bloco da Fervo\n📍 Local a definir\n💰 Pago\n\n📅 15/02 (domingo)\n👠✨ Bloco das Montadas\n📍 Museu Nacional da República\n🆓 Gratuito\n\n📅 21/02 (sábado)\n♿🎶 Bloco do Inclusão\n📍 Varjão\n🆓 Gratuito\n\n🎭 MARÇO\n\n📅 07/03\n🥳 Bloco do MY (Ressaca)\n📍 Clube ASCADE\n💰 Pago\n\n⚠️ Datas, locais e formatos podem sofrer alterações.\n👉 Se tiver algo errado ou faltando, avisa a gente!\n🎉 @deubombrasilia 🤝 @iae.bsb`;
+
+      return carnavalReply;
+    }
+  } catch (_) {}
+
   // Primeiro tenta entender se é um pedido de bar/restaurante usando NLU (parseInitialIntent)
   try {
     const persona = personasCache[wa_jid] || {};
